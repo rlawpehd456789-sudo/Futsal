@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-
+import { ref, onValue, set } from 'firebase/database';
+import { database } from '../firebase';
 import { Cloud, CloudRain, Wind, AlertTriangle, Users, Clock } from 'lucide-react';
 
 const FutsalAttendance = () => {
@@ -18,61 +19,63 @@ const FutsalAttendance = () => {
 
   const [inputNickname, setInputNickname] = useState('');
 
+  // 오늘 날짜 키 생성 (YYYY-MM-DD 형식)
+  const getTodayKey = () => {
+    const today = new Date();
+    return today.toISOString().split('T')[0]; // 'YYYY-MM-DD'
+  };
+
   useEffect(() => {
-
-    loadData();
-
-    const timer = setInterval(() => {
-
-      setCurrentTime(new Date());
-
-      loadData();
-
-    }, 5000);
-
-    return () => clearInterval(timer);
-
-  }, []);
-
-  const loadData = async () => {
-
-    try {
-
-      const storedNickname = localStorage.getItem('futsalNickname');
-
-      if (storedNickname) {
-
-        setNickname(storedNickname);
-
-        setIsRegistered(true);
-
-      }
-
-      const result = await window.storage.get('futsal-today');
-
-      if (result) {
-
-        const data = JSON.parse(result.value);
-
-        setParticipants(data.participants || []);
-
-        const myData = data.participants?.find(p => p.nickname === storedNickname);
-
-        if (myData) {
-
-          setMyStatus(myData.status);
-
-        }
-
-      }
-
-    } catch (error) {
-
-      console.log('No data yet');
-
+    // 닉네임 확인
+    const storedNickname = localStorage.getItem('futsalNickname');
+    if (storedNickname) {
+      setNickname(storedNickname);
+      setIsRegistered(true);
     }
 
-  };
+    // 실시간 시간 업데이트 (1초마다)
+    const timer = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 1000);
+
+    // Firebase 실시간 리스너 설정
+    const todayKey = getTodayKey();
+    const attendanceRef = ref(database, `attendance/${todayKey}`);
+
+    // 실시간 리스너 연결
+    const unsubscribe = onValue(attendanceRef, (snapshot) => {
+      const data = snapshot.val();
+      const currentNickname = localStorage.getItem('futsalNickname'); // 현재 닉네임 가져오기
+      
+      if (data && data.participants) {
+        setParticipants(data.participants || []);
+        
+        // 내 상태 업데이트
+        if (currentNickname) {
+          const myData = data.participants.find(p => p.nickname === currentNickname);
+          if (myData) {
+            setMyStatus(myData.status);
+          } else {
+            setMyStatus('none');
+          }
+        }
+      } else {
+        // 데이터가 없으면 빈 배열
+        setParticipants([]);
+        if (currentNickname) {
+          setMyStatus('none');
+        }
+      }
+    }, (error) => {
+      console.error('Firebase 실시간 업데이트 오류:', error);
+    });
+
+    return () => {
+      clearInterval(timer);
+      unsubscribe(); // Firebase 리스너 제거
+    };
+  }, []);
+
 
   const handleRegister = () => {
 
@@ -89,55 +92,40 @@ const FutsalAttendance = () => {
   };
 
   const updateStatus = async (status) => {
-
     const now = new Date();
-
     const timeStr = `${now.getHours()}:${String(now.getMinutes()).padStart(2, '0')}`;
 
-    
-
+    // 기존 참가자 목록에서 내 정보 제거
     let updatedParticipants = participants.filter(p => p.nickname !== nickname);
 
-    
-
+    // 새 상태 추가 (none이 아니면)
     if (status !== 'none') {
-
       updatedParticipants.push({
-
         nickname,
-
         status,
-
         time: timeStr
-
       });
-
     }
 
-    
-
+    // 로컬 상태 업데이트
     setParticipants(updatedParticipants);
-
     setMyStatus(status);
 
-    
-
+    // Firebase에 저장
     try {
-
-      await window.storage.set('futsal-today', JSON.stringify({
-
+      const todayKey = getTodayKey();
+      const attendanceRef = ref(database, `attendance/${todayKey}`);
+      
+      await set(attendanceRef, {
         participants: updatedParticipants,
-
-        date: new Date().toDateString()
-
-      }), true);
-
+        date: new Date().toDateString(),
+        lastUpdated: now.toISOString()
+      });
     } catch (error) {
-
-      console.error('Failed to save:', error);
-
+      console.error('Firebase 저장 실패:', error);
+      // 오류 발생 시 사용자에게 알림 (선택사항)
+      alert('상태 업데이트에 실패했습니다. 다시 시도해주세요.');
     }
-
   };
 
   const getStatusCount = (status) => {
