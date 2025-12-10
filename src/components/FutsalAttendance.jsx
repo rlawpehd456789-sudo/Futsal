@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ref, onValue, set, off } from 'firebase/database';
-import { database } from '../firebase';
+
 import { Cloud, CloudRain, Wind, AlertTriangle, Users, Clock } from 'lucide-react';
 
 const FutsalAttendance = () => {
@@ -21,56 +20,59 @@ const FutsalAttendance = () => {
 
   useEffect(() => {
 
-    // 시간 업데이트 타이머
+    loadData();
+
     const timer = setInterval(() => {
+
       setCurrentTime(new Date());
-    }, 1000);
 
-    // Firebase 실시간 리스너 설정
-    const todayKey = new Date().toDateString();
-    const attendanceRef = ref(database, `attendance/${todayKey}`);
+      loadData();
 
-    const unsubscribe = onValue(attendanceRef, (snapshot) => {
-      const data = snapshot.val();
-      if (data && data.participants) {
-        const participantsList = Array.isArray(data.participants) 
-          ? data.participants 
-          : Object.values(data.participants);
-        
-        setParticipants(participantsList);
-        
-        // 내 상태 업데이트
-        const storedNickname = localStorage.getItem('futsalNickname');
-        if (storedNickname) {
-          const myData = participantsList.find(p => p.nickname === storedNickname);
-          if (myData) {
-            setMyStatus(myData.status);
-          } else {
-            setMyStatus('none');
-          }
-        }
-      } else {
-        setParticipants([]);
-        setMyStatus('none');
-      }
-    }, (error) => {
-      console.error('Firebase read error:', error);
-    });
+    }, 5000);
 
-    // 닉네임 로드
-    const storedNickname = localStorage.getItem('futsalNickname');
-    if (storedNickname) {
-      setNickname(storedNickname);
-      setIsRegistered(true);
-    }
-
-    return () => {
-      clearInterval(timer);
-      off(attendanceRef);
-    };
+    return () => clearInterval(timer);
 
   }, []);
 
+  const loadData = async () => {
+
+    try {
+
+      const storedNickname = localStorage.getItem('futsalNickname');
+
+      if (storedNickname) {
+
+        setNickname(storedNickname);
+
+        setIsRegistered(true);
+
+      }
+
+      const result = await window.storage.get('futsal-today');
+
+      if (result) {
+
+        const data = JSON.parse(result.value);
+
+        setParticipants(data.participants || []);
+
+        const myData = data.participants?.find(p => p.nickname === storedNickname);
+
+        if (myData) {
+
+          setMyStatus(myData.status);
+
+        }
+
+      }
+
+    } catch (error) {
+
+      console.log('No data yet');
+
+    }
+
+  };
 
   const handleRegister = () => {
 
@@ -88,35 +90,52 @@ const FutsalAttendance = () => {
 
   const updateStatus = async (status) => {
 
-    if (!nickname) return;
-
     const now = new Date();
-    const timeStr = `${now.getHours()}:${String(now.getMinutes()).padStart(2, '0')}`;
-    const todayKey = new Date().toDateString();
 
-    // 기존 참가자 목록에서 내 정보 제거
+    const timeStr = `${now.getHours()}:${String(now.getMinutes()).padStart(2, '0')}`;
+
+    
+
     let updatedParticipants = participants.filter(p => p.nickname !== nickname);
 
-    // 새 상태가 'none'이 아니면 추가
+    
+
     if (status !== 'none') {
+
       updatedParticipants.push({
+
         nickname,
+
         status,
+
         time: timeStr
+
       });
+
     }
 
-    // Firebase에 저장
+    
+
+    setParticipants(updatedParticipants);
+
+    setMyStatus(status);
+
+    
+
     try {
-      const attendanceRef = ref(database, `attendance/${todayKey}`);
-      await set(attendanceRef, {
+
+      await window.storage.set('futsal-today', JSON.stringify({
+
         participants: updatedParticipants,
-        date: todayKey
-      });
-      
-      setMyStatus(status);
+
+        date: new Date().toDateString()
+
+      }), true);
+
     } catch (error) {
-      console.error('Failed to save to Firebase:', error);
+
+      console.error('Failed to save:', error);
+
     }
 
   };
