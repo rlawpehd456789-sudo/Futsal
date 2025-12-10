@@ -25,13 +25,13 @@ const FutsalAttendance = () => {
   const [inputNickname, setInputNickname] = useState('');
   const [nicknameError, setNicknameError] = useState('');
 
-  // 오늘 날짜 키 생성 (YYYY-MM-DD 형식)
+  // 今日の日付キー生成 (YYYY-MM-DD形式)
   const getTodayKey = () => {
     const today = new Date();
     return today.toISOString().split('T')[0]; // 'YYYY-MM-DD'
   };
 
-  // 고유 사용자 ID 가져오기 또는 생성
+  // 固有ユーザーID取得または生成
   const getOrCreateUserId = () => {
     let userId = localStorage.getItem('futsalUserId');
     if (!userId) {
@@ -42,19 +42,19 @@ const FutsalAttendance = () => {
   };
 
   useEffect(() => {
-    // 닉네임 확인
+    // ニックネーム確認
     const storedNickname = localStorage.getItem('futsalNickname');
     if (storedNickname) {
       setNickname(storedNickname);
       setIsRegistered(true);
     }
 
-    // 실시간 시간 업데이트 (1초마다)
+    // リアルタイム時間更新 (1秒ごと)
     const timer = setInterval(() => {
       const now = new Date();
       setCurrentTime(now);
       
-      // 날짜가 바뀌었는지 확인
+      // 日付が変わったか確認
       const newDateKey = now.toISOString().split('T')[0];
       if (newDateKey !== currentDateKey) {
         setCurrentDateKey(newDateKey);
@@ -66,20 +66,20 @@ const FutsalAttendance = () => {
     };
   }, [currentDateKey]);
 
-  // 날짜가 바뀔 때마다 Firebase 리스너 재설정
+  // 日付が変わるたびにFirebaseリスナー再設定
   useEffect(() => {
     const todayKey = getTodayKey();
     const attendanceRef = ref(database, `attendance/${todayKey}`);
 
-    // 실시간 리스너 연결
+    // リアルタイムリスナー接続
     const unsubscribe = onValue(attendanceRef, (snapshot) => {
       const data = snapshot.val();
-      const currentNickname = localStorage.getItem('futsalNickname'); // 현재 닉네임 가져오기
+      const currentNickname = localStorage.getItem('futsalNickname'); // 現在のニックネーム取得
       
       if (data && data.participants) {
         setParticipants(data.participants || []);
         
-        // 내 상태 업데이트
+        // 自分の状態更新
         if (currentNickname) {
           const myData = data.participants.find(p => p.nickname === currentNickname);
           if (myData) {
@@ -89,18 +89,18 @@ const FutsalAttendance = () => {
           }
         }
       } else {
-        // 데이터가 없으면 빈 배열
+        // データがなければ空配列
         setParticipants([]);
         if (currentNickname) {
           setMyStatus('none');
         }
       }
     }, (error) => {
-      console.error('Firebase 실시간 업데이트 오류:', error);
+      console.error('Firebaseリアルタイム更新エラー:', error);
     });
 
     return () => {
-      unsubscribe(); // Firebase 리스너 제거
+      unsubscribe(); // Firebaseリスナー削除
     };
   }, [currentDateKey]);
 
@@ -109,23 +109,23 @@ const FutsalAttendance = () => {
     const trimmedNickname = inputNickname.trim();
     
     if (!trimmedNickname) {
-      setNicknameError('닉네임을 입력해주세요.');
+      setNicknameError('ニックネームを入力してください。');
       return;
     }
 
-    // 닉네임 길이 검증 (10글자 제한)
+    // ニックネーム長さ検証 (10文字制限)
     if (trimmedNickname.length > 10) {
-      setNicknameError('닉네임은 최대 10글자까지 입력 가능합니다.');
+      setNicknameError('ニックネームは最大10文字まで入力可能です。');
       return;
     }
 
-    // 에러 메시지 초기화
+    // エラーメッセージ初期化
     setNicknameError('');
 
     try {
       const userId = getOrCreateUserId();
       
-      // Firebase에서 모든 날짜의 참가자 목록 가져오기
+      // Firebaseからすべての日付の参加者リスト取得
       const attendanceRef = ref(database, 'attendance');
       const snapshot = await get(attendanceRef);
       
@@ -137,7 +137,7 @@ const FutsalAttendance = () => {
       if (snapshot.exists()) {
         const attendanceData = snapshot.val();
         
-        // 사용자 매핑 확인
+        // ユーザーマッピング確認
         const userMappingRef = ref(database, `userMappings/${userId}`);
         const userMappingSnapshot = await get(userMappingRef);
         
@@ -145,7 +145,7 @@ const FutsalAttendance = () => {
           previousNickname = userMappingSnapshot.val().nickname;
         }
         
-        // 모든 날짜의 참가자 목록을 순회하며 닉네임 수집 및 이전 닉네임 찾기
+        // すべての日付の参加者リストを順番に回りながらニックネーム収集および以前のニックネーム検索
         Object.keys(attendanceData).forEach(dateKey => {
           const dateData = attendanceData[dateKey];
           if (dateData && dateData.participants && Array.isArray(dateData.participants)) {
@@ -153,7 +153,7 @@ const FutsalAttendance = () => {
               if (participant.nickname) {
                 allNicknames.add(participant.nickname.toLowerCase());
                 
-                // 이전 닉네임으로 투표한 기록이 있으면 저장
+                // 以前のニックネームで投票した記録があれば保存
                 if (previousNickname && participant.nickname === previousNickname) {
                   previousStatus = participant.status;
                   previousTime = participant.time;
@@ -164,13 +164,13 @@ const FutsalAttendance = () => {
         });
       }
 
-      // 닉네임 중복 체크 (대소문자 구분 없이, 단 같은 사용자가 이전에 사용한 닉네임이 아니어야 함)
+      // ニックネーム重複チェック (大文字小文字区別なし、ただし同じユーザーが以前に使用したニックネームでなければならない)
       if (allNicknames.has(trimmedNickname.toLowerCase()) && trimmedNickname.toLowerCase() !== previousNickname?.toLowerCase()) {
-        setNicknameError('이미 사용 중인 닉네임입니다. 다른 닉네임을 입력해주세요.');
+        setNicknameError('既に使用されているニックネームです。別のニックネームを入力してください。');
         return;
       }
 
-      // 이전 닉네임으로 투표한 기록이 있으면 모든 날짜에서 제거
+      // 以前のニックネームで投票した記録があればすべての日付から削除
       if (previousNickname && previousNickname !== trimmedNickname) {
         const attendanceRef = ref(database, 'attendance');
         const allAttendanceSnapshot = await get(attendanceRef);
@@ -179,7 +179,7 @@ const FutsalAttendance = () => {
           const attendanceData = allAttendanceSnapshot.val();
           const updates = {};
           
-          // 모든 날짜에서 이전 닉네임 제거
+          // すべての日付から以前のニックネーム削除
           Object.keys(attendanceData).forEach(dateKey => {
             const dateData = attendanceData[dateKey];
             if (dateData && dateData.participants && Array.isArray(dateData.participants)) {
@@ -193,7 +193,7 @@ const FutsalAttendance = () => {
             }
           });
           
-          // 여러 날짜 동시 업데이트
+          // 複数の日付同時更新
           if (Object.keys(updates).length > 0) {
             await Promise.all(
               Object.entries(updates).map(([path, value]) => {
@@ -205,30 +205,30 @@ const FutsalAttendance = () => {
         }
       }
 
-      // 사용자 매핑 업데이트
+      // ユーザーマッピング更新
       const userMappingRef = ref(database, `userMappings/${userId}`);
       await set(userMappingRef, {
         nickname: trimmedNickname,
         updatedAt: new Date().toISOString()
       });
 
-      // 중복이 없으면 등록 진행
+      // 重複がなければ登録進行
       localStorage.setItem('futsalNickname', trimmedNickname);
       setNickname(trimmedNickname);
       setIsRegistered(true);
       setNicknameError('');
 
-      // 이전 상태가 있었고 닉네임이 바뀌었다면 새 닉네임으로 상태 복원
+      // 以前の状態があってニックネームが変わったなら新しいニックネームで状態復元
       if (previousNickname && previousNickname !== trimmedNickname && previousStatus) {
-        // 약간의 지연 후 상태 업데이트 (Firebase 업데이트 완료 대기)
+        // 少しの遅延後状態更新 (Firebase更新完了待機)
         setTimeout(() => {
           updateStatus(previousStatus);
         }, 500);
       }
 
     } catch (error) {
-      console.error('닉네임 등록 실패:', error);
-      setNicknameError('닉네임 확인 중 오류가 발생했습니다. 다시 시도해주세요.');
+      console.error('ニックネーム登録失敗:', error);
+      setNicknameError('ニックネーム確認中にエラーが発生しました。再度お試しください。');
     }
   };
 
@@ -236,10 +236,10 @@ const FutsalAttendance = () => {
     const now = new Date();
     const timeStr = `${now.getHours()}:${String(now.getMinutes()).padStart(2, '0')}`;
 
-    // 기존 참가자 목록에서 내 정보 제거
+    // 既存参加者リストから自分の情報削除
     let updatedParticipants = participants.filter(p => p.nickname !== nickname);
 
-    // 새 상태 추가 (none이 아니면)
+    // 新しい状態追加 (noneでなければ)
     if (status !== 'none') {
       updatedParticipants.push({
         nickname,
@@ -248,11 +248,11 @@ const FutsalAttendance = () => {
       });
     }
 
-    // 로컬 상태 업데이트
+    // ローカル状態更新
     setParticipants(updatedParticipants);
     setMyStatus(status);
 
-    // Firebase에 저장
+    // Firebaseに保存
     try {
       const todayKey = getTodayKey();
       const attendanceRef = ref(database, `attendance/${todayKey}`);
@@ -263,9 +263,9 @@ const FutsalAttendance = () => {
         lastUpdated: now.toISOString()
       });
     } catch (error) {
-      console.error('Firebase 저장 실패:', error);
-      // 오류 발생 시 사용자에게 알림 (선택사항)
-      alert('상태 업데이트에 실패했습니다. 다시 시도해주세요.');
+      console.error('Firebase保存失敗:', error);
+      // エラー発生時ユーザーに通知 (オプション)
+      alert('状態更新に失敗しました。再度お試しください。');
     }
   };
 
@@ -293,20 +293,20 @@ const FutsalAttendance = () => {
     if (joinCount >= 4) {
       return {
         icon: Target,
-        text: '경기 가능해요!',
+        text: '試合可能です！',
         color: 'text-white'
       };
     }
     if (joinCount >= 2) {
       return {
         icon: Users,
-        text: '패스 연습 가능해요!',
+        text: 'パス練習可能です！',
         color: 'text-white'
       };
     }
     return {
       icon: AlertCircle,
-      text: '아직 인원이 부족해요',
+      text: 'まだ人数が不足しています',
       color: 'text-white/80'
     };
   };
@@ -350,7 +350,7 @@ const FutsalAttendance = () => {
               />
             </h1>
 
-            <p className="text-gray-600 text-base font-medium">닉네임을 입력해주세요</p>
+            <p className="text-gray-600 text-base font-medium">ニックネームを入力してください</p>
 
           </div>
 
@@ -366,12 +366,12 @@ const FutsalAttendance = () => {
 
               onChange={(e) => {
                 setInputNickname(e.target.value);
-                setNicknameError(''); // 입력 시 에러 메시지 초기화
+                setNicknameError(''); // 入力時エラーメッセージ初期化
               }}
 
               onKeyPress={(e) => e.key === 'Enter' && handleRegister()}
 
-              placeholder="예: 축구왕, 민수킴"
+              placeholder="例: サッカー王、ピカチュウ"
 
               className={`w-full px-5 py-4 border-2 rounded-2xl text-base font-medium focus:outline-none transition-all duration-200 ${
                 nicknameError 
@@ -384,7 +384,7 @@ const FutsalAttendance = () => {
             />
 
             <p className="text-gray-400 text-xs font-medium px-2">
-              닉네임은 최대 10글자까지 입력 가능합니다.
+              ニックネームは最大10文字まで入力可能です。
             </p>
 
             {nicknameError && (
@@ -403,7 +403,7 @@ const FutsalAttendance = () => {
 
             >
 
-              시작하기
+              開始する
 
             </button>
 
@@ -429,7 +429,7 @@ const FutsalAttendance = () => {
 
           <AlertTriangle size={22} className="animate-pulse" />
 
-          <span className="font-semibold">오늘은 비가 예상됩니다. 안전을 위해 실내 활동을 권장합니다.</span>
+          <span className="font-semibold">今日は雨が予想されます。安全のため、屋内活動を推奨します。</span>
 
         </div>
 
@@ -456,7 +456,7 @@ const FutsalAttendance = () => {
 
               <p className="text-gray-900 text-sm font-medium mt-1">
 
-                {currentTime.toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'short' })}
+                {currentTime.toLocaleDateString('ja-JP', { month: 'long', day: 'numeric', weekday: 'short' })}
 
                 <span className="ml-2 text-gray-900 font-semibold">12:30~12:55</span>
 
@@ -465,19 +465,19 @@ const FutsalAttendance = () => {
             </div>
 
             <div className="flex items-center gap-3">
-              {/* 닉네임 카드 */}
+              {/* ニックネームカード */}
               <div className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-gray-900 to-gray-800 rounded-xl shadow-lg">
                 <UserCircle size={18} className="text-white/80" />
                 <span className="text-sm font-semibold text-white">{nickname}</span>
               </div>
 
-              {/* 닉네임 변경 버튼 */}
+              {/* ニックネーム変更ボタン */}
               <button 
                 onClick={async () => {
                   const userId = getOrCreateUserId();
                   const currentNick = nickname;
                   
-                  // 현재 닉네임으로 투표한 기록이 있으면 제거
+                  // 現在のニックネームで投票した記録があれば削除
                   if (currentNick) {
                     try {
                       const attendanceRef = ref(database, 'attendance');
@@ -487,7 +487,7 @@ const FutsalAttendance = () => {
                         const attendanceData = allAttendanceSnapshot.val();
                         const updates = {};
                         
-                        // 모든 날짜에서 현재 닉네임 제거
+                        // すべての日付から現在のニックネーム削除
                         Object.keys(attendanceData).forEach(dateKey => {
                           const dateData = attendanceData[dateKey];
                           if (dateData && dateData.participants && Array.isArray(dateData.participants)) {
@@ -501,7 +501,7 @@ const FutsalAttendance = () => {
                           }
                         });
                         
-                        // 여러 날짜 동시 업데이트
+                        // 複数の日付同時更新
                         if (Object.keys(updates).length > 0) {
                           await Promise.all(
                             Object.entries(updates).map(([path, value]) => {
@@ -512,7 +512,7 @@ const FutsalAttendance = () => {
                         }
                       }
                     } catch (error) {
-                      console.error('이전 투표 기록 제거 실패:', error);
+                      console.error('以前の投票記録削除失敗:', error);
                     }
                   }
                   
@@ -524,7 +524,7 @@ const FutsalAttendance = () => {
                 className="group flex items-center gap-1.5 px-4 py-2 bg-white/90 hover:bg-white border border-gray-200 rounded-xl shadow-md hover:shadow-lg transition-all duration-200 transform hover:scale-105"
               >
                 <Pencil size={14} className="text-gray-600 group-hover:text-emerald-600 transition-colors" />
-                <span className="text-xs font-semibold text-gray-700 group-hover:text-emerald-600 transition-colors">변경</span>
+                <span className="text-xs font-semibold text-gray-700 group-hover:text-emerald-600 transition-colors">変更</span>
               </button>
             </div>
 
@@ -544,9 +544,9 @@ const FutsalAttendance = () => {
 
           <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent"></div>
           <div className="relative z-10">
-            <div className="text-xl font-semibold mb-3">현재 참가자</div>
+            <div className="text-xl font-semibold mb-3">現在の参加者</div>
 
-            <div className="text-7xl font-extrabold mb-3 drop-shadow-lg">{joinCount}명</div>
+            <div className="text-7xl font-extrabold mb-3 drop-shadow-lg">{joinCount}名</div>
 
             {(() => {
               const statusMsg = getStatusMessage();
@@ -570,7 +570,7 @@ const FutsalAttendance = () => {
                 <div className="p-1.5 bg-white/20 backdrop-blur-sm rounded-lg">
                   <Flame size={18} className="text-white" />
                 </div>
-                <span>곧 시작합니다!</span>
+                <span>もうすぐ始まります！</span>
 
               </div>
 
@@ -585,7 +585,7 @@ const FutsalAttendance = () => {
 
           <h2 className="text-lg font-extrabold text-gray-800 mb-4 flex items-center gap-2">
             <span className="w-1 h-5 bg-gradient-to-b from-emerald-500 to-teal-500 rounded-full"></span>
-            나의 참가 의사
+            私の参加意思
           </h2>
 
           <div className="space-y-3">
@@ -612,7 +612,7 @@ const FutsalAttendance = () => {
                   className={myStatus === 'join' ? 'text-white' : 'text-emerald-600'} 
                 />
               </div>
-              <span>참가해요</span>
+              <span>参加します</span>
               <span className={`px-3 py-1 rounded-full text-base font-semibold ${
                 myStatus === 'join'
                   ? 'bg-white/20 backdrop-blur-sm text-white'
@@ -647,7 +647,7 @@ const FutsalAttendance = () => {
                   className={myStatus === 'pass' ? 'text-white' : 'text-red-600'} 
                 />
               </div>
-              <span>불참해요</span>
+              <span>不参加です</span>
               <span className={`px-3 py-1 rounded-full text-base font-semibold ${
                 myStatus === 'pass'
                   ? 'bg-white/20 backdrop-blur-sm text-white'
@@ -671,7 +671,7 @@ const FutsalAttendance = () => {
             <div className="p-2 bg-gradient-to-br from-emerald-100 to-teal-100 rounded-xl">
               <Users size={20} className="text-emerald-600" />
             </div>
-            참가자 목록
+            参加者リスト
 
           </h2>
 
@@ -681,7 +681,7 @@ const FutsalAttendance = () => {
 
             <div className="text-center py-12">
               <div className="text-5xl mb-4">⚽</div>
-              <p className="text-gray-500 font-medium">아직 참가 의사를 밝힌 사람이 없어요</p>
+              <p className="text-gray-500 font-medium">まだ参加意思を表明した人がいません</p>
             </div>
 
           ) : (
@@ -740,7 +740,7 @@ const FutsalAttendance = () => {
 
                           {p.nickname === nickname && (
 
-                            <span className="px-2 py-0.5 bg-emerald-500 text-white text-xs font-bold rounded-full flex-shrink-0">나</span>
+                            <span className="px-2 py-0.5 bg-emerald-500 text-white text-xs font-bold rounded-full flex-shrink-0">私</span>
 
                           )}
 
@@ -750,7 +750,7 @@ const FutsalAttendance = () => {
 
                           <Clock size={12} />
 
-                          {p.time} 표시
+                          {p.time} 表示
 
                         </div>
 
@@ -775,11 +775,11 @@ const FutsalAttendance = () => {
           <div className="space-y-2 text-sm text-gray-700">
             <p className="flex items-center gap-2 font-semibold">
               <span className="text-lg">💡</span>
-              <strong className="text-emerald-700">4명 이상</strong>이면 경기를 할 수 있어요
+              <strong className="text-emerald-700">4名以上</strong>なら試合ができます
             </p>
             <p className="flex items-center gap-2 font-semibold">
               <span className="text-lg">💡</span>
-              <strong className="text-teal-700">2-3명</strong>이면 패스 연습이 가능해요
+              <strong className="text-teal-700">2-3名</strong>ならパス練習が可能です
             </p>
           </div>
 
@@ -794,4 +794,3 @@ const FutsalAttendance = () => {
 };
 
 export default FutsalAttendance;
-
